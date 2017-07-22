@@ -1,0 +1,10 @@
+./
+.DS_Store
+*~
+*#
+*.autosave
+*.files
+*.config
+*.includes
+*.creator*
+*.user
