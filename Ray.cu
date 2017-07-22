@@ -19,11 +19,35 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
-#include <GL/glew.h>
+// OpenGL Graphics includes
+#include <helper_gl.h>
+
+#if defined(__APPLE__) || defined(MACOSX)
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+#include <GLUT/glut.h>
+#ifndef glutCloseFunc
+#define glutCloseFunc glutWMCloseFunc
+#endif
+#else
+#include <GL/freeglut.h>
+#endif
+
+// Includes
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
+
+// CUDA standard includes
 #include <cuda_runtime.h>
-#include <cutil_inline.h>
-#include <cutil_gl_error.h>
 #include <cuda_gl_interop.h>
+
+// CUDA helper functions
+#include <helper_functions.h>
+#include <rendercheck_gl.h>
+#include <helper_cuda.h>
+#include <helper_cuda_gl.h>
+
+// Kinect
 #include <nuiapi.h>
 
 //CUDA
@@ -597,7 +621,7 @@ void initCuda(const unsigned char* h_volume, cudaExtent volumeSize, int width, i
 {
    // create 3D array
    cudaChannelFormatDesc channelDesc = cudaCreateChannelDesc<unsigned char>();
-   cutilSafeCall( cudaMalloc3DArray(&d_volumeArray, &channelDesc, volumeSize) );
+   checkCudaErrors( cudaMalloc3DArray(&d_volumeArray, &channelDesc, volumeSize) );
 
    // copy data to 3D array
    cudaMemcpy3DParms copyParams = {0};
@@ -605,7 +629,7 @@ void initCuda(const unsigned char* h_volume, cudaExtent volumeSize, int width, i
    copyParams.dstArray = d_volumeArray;
    copyParams.extent   = volumeSize;
    copyParams.kind     = cudaMemcpyHostToDevice;
-   cutilSafeCall( cudaMemcpy3D(&copyParams) );
+   checkCudaErrors( cudaMemcpy3D(&copyParams) );
 
    // set texture parameters
    tex.normalized     = true;                      // access with normalized texture coordinates
@@ -615,23 +639,23 @@ void initCuda(const unsigned char* h_volume, cudaExtent volumeSize, int width, i
    tex.addressMode[2] = cudaAddressModeWrap;
 
    // bind array to 3D texture
-   cutilSafeCall(cudaBindTextureToArray(tex, d_volumeArray, channelDesc));
+   checkCudaErrors(cudaBindTextureToArray(tex, d_volumeArray, channelDesc));
 
    // Allocate memory
-   cutilSafeCall(cudaMalloc( (void**)&_dBkGround,   640*480*sizeof(DWORD)*4 ));
-   cutilSafeCall(cudaMalloc( (void**)&_dPrimitives, _dNbPrimitives*sizeof(Primitive) ));
-   cutilSafeCall(cudaMalloc( (void**)&_dLamps,      _dNbLamps*sizeof(Lamp) ));
-   cutilSafeCall(cudaMalloc( (void**)&_dRays,       width*height*sizeof(float3) ));
+   checkCudaErrors(cudaMalloc( (void**)&_dBkGround,   640*480*sizeof(DWORD)*4 ));
+   checkCudaErrors(cudaMalloc( (void**)&_dPrimitives, _dNbPrimitives*sizeof(Primitive) ));
+   checkCudaErrors(cudaMalloc( (void**)&_dLamps,      _dNbLamps*sizeof(Lamp) ));
+   checkCudaErrors(cudaMalloc( (void**)&_dRays,       width*height*sizeof(float3) ));
 
 }
 
 extern "C"
 void finalizeCuda()
 {
-   cutilSafeCall(cudaFree(_dBkGround));
-   cutilSafeCall(cudaFree(_dPrimitives));
-   cutilSafeCall(cudaFree(_dLamps));
-   cutilSafeCall(cudaFree(_dRays));
+   checkCudaErrors(cudaFree(_dBkGround));
+   checkCudaErrors(cudaFree(_dPrimitives));
+   checkCudaErrors(cudaFree(_dLamps));
+   checkCudaErrors(cudaFree(_dRays));
 }
 
 extern "C"
@@ -693,10 +717,10 @@ void render_kernel(
    set( lamps[0].center,   0.0f,  200.0f, -200.0f ); lamps[0].intensity = 2.0f; set( lamps[0].color, 0.5f, 0.5f, 0.5f );
    set( lamps[1].center, -100.0f * sinf(time/2.2f),  200.0f, -100.0f * cosf(time/3.5f) ); lamps[1].intensity = 1.0f; set( lamps[1].color, 1.0f, 1.0f, 1.0f );
 
-   cutilSafeCall(cudaMemcpy( _dPrimitives, primitives, nbVisiblePrimitives*sizeof(Primitive),cudaMemcpyHostToDevice));
-   cutilSafeCall(cudaMemcpy( _dLamps,      lamps,      _dNbLamps*sizeof(Lamp),               cudaMemcpyHostToDevice));
+   checkCudaErrors(cudaMemcpy( _dPrimitives, primitives, nbVisiblePrimitives*sizeof(Primitive),cudaMemcpyHostToDevice));
+   checkCudaErrors(cudaMemcpy( _dLamps,      lamps,      _dNbLamps*sizeof(Lamp),               cudaMemcpyHostToDevice));
 #if 0
-   cutilSafeCall(cudaMemcpy( _dBkGround,   bkground,   640*480*sizeof(DWORD)*4,           cudaMemcpyHostToDevice));
+   checkCudaErrors(cudaMemcpy( _dBkGround,   bkground,   640*480*sizeof(DWORD)*4,           cudaMemcpyHostToDevice));
 #endif // KINECT
    
    float3 topLeftCorner, bottomRightCorner;
